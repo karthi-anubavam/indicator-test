@@ -1,10 +1,10 @@
 Titanium.UI.setBackgroundColor('#000');
 Ti.Database.install('indicator.sqlite', "indicator");
-
+Ti.App.Properties.setBool('isLoading', false);
 var win = Titanium.UI.createWindow({  
     backgroundColor:'#fff'
 });
-var wrappr;
+var wrappr,loaderView;
 
 var inserRow = function(rowIndex){
 	 var db = Ti.Database.open("indicator");
@@ -16,6 +16,43 @@ var deleteTable = function(){
 	var db = Ti.Database.open("indicator");
 	db.execute("delete from demo");
 	db.close();
+};
+
+var addLoader = function(bgColor){
+	var loaderView = Ti.UI.createView({
+		height : Ti.UI.SIZE,
+		top : 35
+	});
+	
+	if(bgColor){
+		loaderView.backgroundColor = bgColor;
+	}
+
+	var prefix = 'loadingSmall/';
+    
+    Ti.API.info("prefix = "+prefix);
+	var loader = Ti.UI.createImageView({
+		height : 50,
+		width : 50,
+		duration : 50,
+		images : [prefix + 'loading01.png', prefix + 'loading02.png', prefix + 'loading03.png', prefix + 'loading04.png', prefix + 'loading05.png', prefix + 'loading06.png', prefix + 'loading07.png', prefix + 'loading08.png', prefix + 'loading09.png', prefix + 'loading10.png', prefix + 'loading11.png', prefix + 'loading12.png', prefix + 'loading13.png', prefix + 'loading14.png', prefix + 'loading15.png', prefix + 'loading16.png', prefix + 'loading17.png', prefix + 'loading18.png']
+	});
+	loaderView.add(loader);
+	loader.start();
+	
+	return loaderView;
+};
+
+var loadingHolderView = new function () {
+	this.loadingHolderView = null;
+	
+	this.getLoadingHolderView = function () {
+		return this.loadingHolderView;
+	};
+	
+	this.setLoadingHolderView = function (view) {
+		this.loadingHolderView = view;
+	};
 };
 
 var addLoading = function(){
@@ -33,25 +70,15 @@ var addLoading = function(){
         backgroundColor: '#000'
     });
     wrappr.add(indView);
-
-	var loaderView = Ti.UI.createView({
-		height : Ti.UI.SIZE,
-		top : 35
-	});
-	indView.add(loaderView);
-
-	var prefix = 'loadingSmall/';
     
-    Ti.API.info("prefix = "+prefix);
-	var loader = Ti.UI.createImageView({
-		height : 50,
-		width : 50,
-		duration : 50,
-		images : [prefix + 'loading01.png', prefix + 'loading02.png', prefix + 'loading03.png', prefix + 'loading04.png', prefix + 'loading05.png', prefix + 'loading06.png', prefix + 'loading07.png', prefix + 'loading08.png', prefix + 'loading09.png', prefix + 'loading10.png', prefix + 'loading11.png', prefix + 'loading12.png', prefix + 'loading13.png', prefix + 'loading14.png', prefix + 'loading15.png', prefix + 'loading16.png', prefix + 'loading17.png', prefix + 'loading18.png']
-	});
-	loaderView.add(loader);
-	loader.start();
-	
+    var tmpView = Titanium.UI.createView();
+    indView.add(tmpView);
+
+    var loadingImage = addLoader();
+    tmpView.add(loadingImage);
+    
+	loadingHolderView.setLoadingHolderView(tmpView);
+
 	var message = Titanium.UI.createLabel({ 
 		top: 100,
 	    text: 'Loading...',
@@ -79,6 +106,7 @@ var syncBtn = Ti.UI.createButton({
 // Listen for click events.
 syncBtn.addEventListener('click', function() {
 	 addLoading();
+	 Ti.App.Properties.setBool('isLoading', true);
 	 var url = "http://www.appcelerator.com";
 	 var client = Ti.Network.createHTTPClient({
 	     // function called when the response data is available
@@ -92,10 +120,12 @@ syncBtn.addEventListener('click', function() {
 	         	 inserRow(i);
 			 }
 			 removeLoading();
+			 Ti.App.Properties.setBool('isLoading', false);
 	     },
 	     // function called when an error occurs, including a timeout
 	     onerror : function(e) {
 	     	 removeLoading();
+	     	 Ti.App.Properties.setBool('isLoading', false);
 	         Ti.API.debug(e.error);
 	     },
 	     timeout : 5000  // in milliseconds
@@ -109,4 +139,23 @@ syncBtn.addEventListener('click', function() {
 win.add(syncBtn);
 	
 
+var bc = Ti.Android.createBroadcastReceiver({
+    onReceived: function() {
+        // Animation remove
+		Ti.API.info('@@@Android Camed to resume, isLoading = '+Ti.App.Properties.getBool('isLoading'));  
+		if(Ti.App.Properties.getBool('isLoading')){
+			var lhv = loadingHolderView.getLoadingHolderView();
+			Ti.API.info('@@@Android child len = '+lhv.children.length);
+			if(lhv.children.length){
+			    lhv.remove(lhv.children[0]);
+			    var loadingImage = addLoader("green");
+			    lhv.add(loadingImage);
+		    }
+		}
+    }
+});
+
+Ti.Android.registerBroadcastReceiver(bc, [Ti.Android.ACTION_SCREEN_OFF]);
+
+		        
 win.open();
